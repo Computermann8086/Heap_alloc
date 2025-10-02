@@ -116,10 +116,8 @@ void* halloc(size_t size){
   size_t req_size = size;
   if (req_size == 0 || req_size < MIN_CHUNK_SIZE){
     req_size = MIN_CHUNK_SIZE;
-  } else if (valloc_err == 1){
-    return NULL;
-  } else if(size > heap.heap_free_size){
-    return NULL;    // Too bad, so sad get TF OUT OF HERE!!
+  } else if (valloc_err || size > heap.heap_free_size){
+    return NULL; // Too bad, so sad, now get TF OUT OF HERE!!
   } else{
     req_size = ((size + MIN_CHUNK_SIZE - 1) / MIN_CHUNK_SIZE) * MIN_CHUNK_SIZE;
   }
@@ -129,42 +127,47 @@ void* halloc(size_t size){
   for (size_t i = 0; i < heap.list_size/sizeof(chunk); i++){
     chnk_ptr = (chunk*)heap.heap_list+i;
 
-    if (strncmp(chnk_ptr->sig, heap.sig, SIG_LEN)==0){
-      if (chnk_ptr->state == 0){
-        if (chnk_ptr->size > req_size && chnk_ptr->size-req_size >= MIN_CHUNK_SIZE){  
-          /* 
-          If size of chunk is greater than request and truncated 
-          chunk is greater than or equal to MIN_CHUNK_SIZE, truncate the chunk and add a new chunk right after it
-          */
+    if (strncmp(chnk_ptr->sig, heap.sig, SIG_LEN)!=0){
+      continue;   // Then just pass
+    }
+    if (chnk_ptr->state != 0){
+      continue;
+    }
 
-          chnk_ptr->state = 1;
-          chnk_save = chnk_ptr;
-          chnk_ptr += 1;
-          chnk_ptr->size = chnk_save->size-req_size;
-          chnk_save->size = req_size;
-          void *temp_data = chnk_save->data;
-          chnk_ptr->data = (void*)((char*)temp_data+req_size);
-          chnk_ptr->next = 0;
-          chnk_ptr->state = CHUNK_FREE;
-          chnk_ptr->prev_size=chnk_save->size;
-          chnk_ptr->prev = chnk_save;
-          memcpy(chnk_ptr->sig, chnk_save->sig, SIG_LEN);
-          heap.heap_free_size -= req_size;
-          break;          
+    /* 
+    If size of chunk is greater than request and truncated 
+    chunk is greater than or equal to MIN_CHUNK_SIZE, truncate the chunk and add a new chunk right after it
+    */
+    if (chnk_ptr->size > req_size && chnk_ptr->size-req_size >= MIN_CHUNK_SIZE){  
+      chnk_ptr->state = 1;
+      chnk_save = chnk_ptr;
+      chnk_ptr += 1;
+      chnk_ptr->size = chnk_save->size-req_size;
+      chnk_save->size = req_size;
+      void *temp_data = chnk_save->data;
+      chnk_ptr->data = (void*)((char*)temp_data+req_size);
+      chnk_ptr->next = 0;
+      chnk_ptr->state = CHUNK_FREE;
+      chnk_ptr->prev_size=chnk_save->size;
+      chnk_ptr->prev = chnk_save;
+      memcpy(chnk_ptr->sig, chnk_save->sig, SIG_LEN);
+      heap.heap_free_size -= req_size;
+      break;          
         
-        } else if(chnk_ptr->size >= req_size){
-          chnk_ptr->state = 1;
-          chnk_save = chnk_ptr;
-          break;
-        }
-      }
+    } else if(chnk_ptr->size >= req_size){
+        chnk_ptr->state = 1;
+        chnk_save = chnk_ptr;
+        break;
     }
   }
 
   if(chnk_save){ 
-  return chnk_save->data; 
-  } else return NULL;
+    return chnk_save->data; 
+  } else{
+    return NULL;
+  }
 }
+
 
 //int add_chunk(){
 //  for (int i = 0; i <= heap.list_size/32; i += sizeof(chunk)){
