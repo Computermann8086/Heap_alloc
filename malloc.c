@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define MIN_chunk_SIZE 32
+#define MIN_CHUNK_SIZE 32
 #define SIG_LEN 8
 #define MAX_HEAP_SIZE 262144
 #define CHUNK_FREE 0
@@ -18,18 +18,19 @@
 
 typedef struct chunk{
   char sig[SIG_LEN];
-  uint64_t current_index;    // Current index into the chunk list
+  void *data;                // Pointer into the heap memory
   size_t size;               // Size of the chunk
   int state;                 // 0 for free, 1 for used
   struct chunk *next;        // Index of the next chunk in RAM
   struct chunk *prev;        // Only for free_list
+  size_t prev_size;          // Size of the prevoius chunk
 } chunk;
 
 typedef struct HEAP{
   char sig[SIG_LEN];
   void* heap_memory;
   size_t heap_size;
-  size_t heap_free;
+  size_t heap_free_size;
   void* heap_list;
   size_t list_size;
 } HEAP;
@@ -52,6 +53,7 @@ int init_heap(size_t heap_size){
   }
 
   void *hlist;
+  void *hmem;
   size_t hsize = heap_size;
   if (hsize == 0){
     hsize = 65536;
@@ -67,9 +69,10 @@ int init_heap(size_t heap_size){
     valloc_err = 1;
     return -1;
   }
+  hmem = heap.heap_memory;
 
   heap.heap_size = hsize;
-  size_t hlist_size = (hsize/MIN_chunk_SIZE)*sizeof(chunk);
+  size_t hlist_size = (hsize/MIN_CHUNK_SIZE)*sizeof(chunk);
   heap.heap_list = VirtualAlloc(NULL, (size_t) hlist_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   if (heap.heap_list == NULL){
     printf("Error: Fatal: init_heap() -> Could not allocate memory: VirtualAlloc() -> %lu\n", GetLastError());
@@ -85,9 +88,12 @@ int init_heap(size_t heap_size){
 
   chunk *chunk_ptr = (chunk*)hlist;
   chunk_ptr->size = hsize;
-  chunk_ptr->current_index = 0;
-  chunk_ptr->next = &hlist;
+  chunk_ptr->data = hmem;
+  chunk_ptr->next = hlist;
   chunk_ptr->state = CHUNK_FREE;
+  chunk_ptr->prev_size=0;
+  HEAP *hptr = &heap; 
+
   memcpy(chunk_ptr->sig, rnd_str, SIG_LEN);
   memcpy(heap.sig, rnd_str, SIG_LEN);
 
@@ -99,6 +105,8 @@ int init_heap(size_t heap_size){
     return -1;
   }
 
+  heap.heap_free_size = hsize;
+
   printf("\nSucessfully initialized heap\n");
   return 0;  // Heap initialized sucessfully!!!!
 }
@@ -106,18 +114,55 @@ int init_heap(size_t heap_size){
 
 
 void* halloc(size_t size){
-  size_t chunk_size = size;
-  if (chunk_size == 0){
-    chunk_size = MIN_chunk_SIZE;
+  size_t req_size = size;
+  if (req_size == 0){
+    req_size = MIN_CHUNK_SIZE;
   } else if (valloc_err == 1){
     return NULL;
-  } else if(size > heap.heap_free){
+  } else if(size > heap.heap_free_size){
     return NULL;    // Too bad, so sad get TF OUT OF HERE!!
   }
+  chunk * chnk_ptr;
+  chunk * chnk_save;
+  chnk_save = NULL;
+  for (size_t i = 0; i < heap.list_size/sizeof(chunk); i++){
+    chnk_ptr = (chunk*)heap.heap_list+i;
 
+    if (strncmp(chnk_ptr->sig, heap.sig, SIG_LEN)==0){
+      if (chnk_ptr->state == 0){
+        if (chnk_ptr->size > req_size && chnk_ptr->size-req_size >= MIN_CHUNK_SIZE){  
+          /* 
+          If size of chunk is greater than request and truncated 
+          chunk is greater than or equal to MIN_CHUNK_SIZE, truncate the chunk and add a new chunk right after it
+          */
 
+          chnk_ptr->state = 1;
+          chnk_save = chnk_ptr;
+          chnk_ptr += 1;
+          chnk_ptr->size = chnk_save->size-req_size;
+          chnk_save->size = req_size;
+          void *temp_data = chnk_save->data;
+          chnk_ptr->data = (void*)((char*)temp_data+req_size);
+          chnk_ptr->next = 0;
+          chnk_ptr->state = CHUNK_FREE;
+          chnk_ptr->prev_size=chnk_save->size;
+          chnk_ptr->prev = chnk_save;
+          memcpy(chnk_ptr->sig, chnk_save->sig, SIG_LEN);
+          heap.heap_free_size -= req_size;
+          break;          
+        
+        } else if(chnk_ptr->size >= req_size){
+          chnk_ptr->state = 1;
+          chnk_save = chnk_ptr;
+          break;
+        }
+      }
+    }
+  }
 
-    return NULL;
+  if(chnk_save){ 
+  return chnk_save->data; 
+  } else return NULL;
 }
 
 //int add_chunk(){
@@ -126,10 +171,20 @@ void* halloc(size_t size){
 //  }
 //}
 
+/*
+hlist = [chunk, chunk, chunk...]
+
+*/
+
 void hfree(void *ptr){
+
+  if (ptr > heap.heap_memory){
+    printf("Bad pointer to hfree()");
+    return;
+  }
   int index = (int*)ptr-(int*)heap.heap_memory;
   chunk* hlist = (chunk*)heap.heap_list;
-  if (strcmp(heap.sig, hlist[index].sig)){
+  if (strncmp(heap.sig, hlist[index].sig, SIG_LEN)){
     ;
   }
   return;
@@ -137,6 +192,26 @@ void hfree(void *ptr){
 
 int main(){
   init_heap(0);
+  char *hi;
+  hi = (char*)halloc(32);
+  printf("Mallocing...\n");
+  hi[0]  = 'H';
+  hi[1]  = 'e';
+  hi[2]  = 'l';
+  hi[3]  = 'l';
+  hi[4]  = 'o';
+  hi[5]  = ' ';
+  hi[6]  = 'W';
+  hi[7]  = 'o';
+  hi[8]  = 'r';
+  hi[9] = 'l';
+  hi[10] = 'd';
+  hi[11] = '!';
+  hi[12] = '\0';
+  printf("This is the contents at the memory location: %s\n", hi);
+  printf("Pointer from halloc: %p\n", hi);
+
+
   return 0;
 }
 
