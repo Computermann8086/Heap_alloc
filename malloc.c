@@ -92,7 +92,6 @@ int init_heap(size_t heap_size){
   chunk_ptr->next = hlist;
   chunk_ptr->state = CHUNK_FREE;
   chunk_ptr->prev_size=0;
-  HEAP *hptr = &heap; 
 
   memcpy(chunk_ptr->sig, rnd_str, SIG_LEN);
   memcpy(heap.sig, rnd_str, SIG_LEN);
@@ -177,8 +176,10 @@ hlist = [chunk, chunk, chunk...]
 */
 
 void hfree(void *ptr){
-
-  if (ptr > heap.heap_memory){
+  char* hmemt = (char*)heap.heap_memory;
+  int offset = (int)heap.heap_size;
+  void* hmem = (void*)(hmemt+offset);
+  if (ptr > hmem){
     printf("Bad pointer to hfree()");
     return;
   }
