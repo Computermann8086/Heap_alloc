@@ -114,7 +114,7 @@ int init_heap(size_t heap_size){
 
 void* halloc(size_t size){
   size_t req_size = size;
-  if (req_size == 0 | req_size < MIN_CHUNK_SIZE){
+  if (req_size == 0 || req_size < MIN_CHUNK_SIZE){
     req_size = MIN_CHUNK_SIZE;
   } else if (valloc_err == 1){
     return NULL;
