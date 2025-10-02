@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define MIN_CHUNK_SIZE 32
+#define MIN_CHUNK_SIZE 16
 #define SIG_LEN 8
 #define MAX_HEAP_SIZE 262144
 #define CHUNK_FREE 0
@@ -114,12 +114,14 @@ int init_heap(size_t heap_size){
 
 void* halloc(size_t size){
   size_t req_size = size;
-  if (req_size == 0){
+  if (req_size == 0 | req_size < MIN_CHUNK_SIZE){
     req_size = MIN_CHUNK_SIZE;
   } else if (valloc_err == 1){
     return NULL;
   } else if(size > heap.heap_free_size){
     return NULL;    // Too bad, so sad get TF OUT OF HERE!!
+  } else{
+    req_size = ((size + MIN_CHUNK_SIZE - 1) / MIN_CHUNK_SIZE) * MIN_CHUNK_SIZE;
   }
   chunk * chnk_ptr;
   chunk * chnk_save;
