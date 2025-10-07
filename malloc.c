@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #define MIN_CHUNK_SIZE 16
 #define SIG_LEN 8
@@ -281,7 +282,7 @@ void* os_alloc(size_t rsize){
 
 bool os_free(void* mptr){
     #if _WIN32 || WIN32
-	bool rval = VirtualFree(mptr, 0, MEM_RELEASE);
+	    bool rval = VirtualFree(mptr, 0, MEM_RELEASE);
     #elif defined(__linux__)
 	bool rval = munmap(mptr, grsize);
     #else
@@ -292,11 +293,11 @@ bool os_free(void* mptr){
 }
 
 chunk* find_best_fit(chunk* chnk_list_ptr, size_t size){
-  size_t smallest = heap.heap_size;
-  chunk* chptr;
+  size_t smallest = SIZE_MAX;
+  chunk* chptr = NULL;
   for (int i = 0; i<heap.list_size/sizeof(chunk); i++){
-    chunk* chnk_ptr = heap.heap_list+i;
-    if (chnk_ptr->size > smallest){
+    chunk* chnk_ptr = (chunk*)heap.heap_list+i;
+    if (chnk_ptr->size > smallest || chnk_ptr->size < size || strncmp(chnk_ptr->sig, heap.sig, SIG_LEN) != 0){
       continue;
     }
     chptr = chnk_ptr;
