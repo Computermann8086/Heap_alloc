@@ -291,4 +291,18 @@ bool os_free(void* mptr){
     return rval;
 }
 
+chunk* find_best_fit(chunk* chnk_list_ptr, size_t size){
+  size_t smallest = heap.heap_size;
+  chunk* chptr;
+  for (int i = 0; i<heap.list_size/sizeof(chunk); i++){
+    chunk* chnk_ptr = heap.heap_list+i;
+    if (chnk_ptr->size > smallest){
+      continue;
+    }
+    chptr = chnk_ptr;
+    smallest = chnk_ptr->size;
+  }
+  return chptr;
+}
+
 #endif
