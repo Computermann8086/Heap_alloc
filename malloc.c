@@ -1,13 +1,23 @@
 #ifndef HALLOC
 #define HALLOC
 
-#include <stdint.h>
-#include <memoryapi.h>
-#include <windows.h>
+
+#ifdef _WIN32 || defined(WIN32)
+   #include <memoryapi.h>
+   #include <windows.h>
+   #define ISWIN 1
+#elif defined(__linux__)
+   #include <sys/mman.h>
+   #define ISWIN 0
+#endif
+
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <error.h>
 
 #define MIN_CHUNK_SIZE 16
 #define SIG_LEN 8
@@ -35,11 +45,25 @@ typedef struct HEAP{
   size_t list_size;
 } HEAP;
 
+size_t grsize;
+
 HEAP heap;
 
 char* generateRandomString(int);
-
+void* os_alloc(size_t);
+bool os_free(void*);
 int valloc_err = 0;
+
+int errhandling(){
+  #ifdef _WIN32 || defined(WIN32)
+    printf("%lu\n", GetLastError());
+  #elif defined(__linux__)
+    perror("");
+  #else
+    #error "COMPILER ERROR: This library requires either Linux or Windows; cannot continue compilation!"
+  #endif
+  return 0;
+}
 
 int init_heap(size_t heap_size){
   srand(time(NULL)); 
@@ -47,7 +71,7 @@ int init_heap(size_t heap_size){
   char* rnd_str = generateRandomString(rndstr_len);
 
   if (!rnd_str){
-    printf("Error: Fatal: init_heap() -> Could not generate random signature: generateRandomString()  -> %lu\n", GetLastError());
+    printf("Error: Fatal: init_heap() -> Could not generate random signature: generateRandomString()  -> ", errhandling());
     valloc_err = 1;
     return -1;
   }
@@ -63,9 +87,10 @@ int init_heap(size_t heap_size){
     hsize = MIN_HEAP_SIZE;
   }
 
-  heap.heap_memory = VirtualAlloc(NULL, hsize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+  //heap.heap_memory = VirtualAlloc(NULL, hsize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+  heap.heap_memory = os_alloc(hsize);
   if (heap.heap_memory == NULL){
-    printf("Error: Fatal: init_heap() -> Could not allocate memory: VirtualAlloc() -> %lu\n", GetLastError());
+    printf("Error: Fatal: init_heap() -> Could not allocate memory: VirtualAlloc() -> ", errhandling());
     valloc_err = 1;
     return -1;
   }
@@ -73,9 +98,10 @@ int init_heap(size_t heap_size){
 
   heap.heap_size = hsize;
   size_t hlist_size = (hsize/MIN_CHUNK_SIZE)*sizeof(chunk);
-  heap.heap_list = VirtualAlloc(NULL, (size_t) hlist_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+ // heap.heap_list = VirtualAlloc(NULL, (size_t) hlist_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+  heap.heap_list = os_alloc((size_t)hlist_size);
   if (heap.heap_list == NULL){
-    printf("Error: Fatal: init_heap() -> Could not allocate memory: VirtualAlloc() -> %lu\n", GetLastError());
+    printf("Error: Fatal: init_heap() -> Could not allocate memory: VirtualAlloc() -> ", errhandling());
     valloc_err = 1;
     return -1;
   }
@@ -96,10 +122,11 @@ int init_heap(size_t heap_size){
   memcpy(chunk_ptr->sig, rnd_str, SIG_LEN);
   memcpy(heap.sig, rnd_str, SIG_LEN);
 
-  if (VirtualFree(rnd_str, 0, MEM_RELEASE)) {
-    ;
+ // if (VirtualFree(rnd_str, 0, MEM_RELEASE)) {
+  if (os_free(rnd_str)){  
+  ;
   } else {
-    printf("Error: Fatal: init_heap() -> Could not deallocate memory: VirtualFree(random sig) -> %lu\n", GetLastError());
+    printf("Error: Fatal: init_heap() -> Could not deallocate memory: VirtualFree(random sig) -> ", errhandling());
     valloc_err = 1;
     return -1;
   }
@@ -139,18 +166,24 @@ void* halloc(size_t size){
     chunk is greater than or equal to MIN_CHUNK_SIZE, truncate the chunk and add a new chunk right after it
     */
     if (chnk_ptr->size > req_size && chnk_ptr->size-req_size >= MIN_CHUNK_SIZE){  
+      
       chnk_ptr->state = 1;
       chnk_save = chnk_ptr;
+
       chnk_ptr += 1;
       chnk_ptr->size = chnk_save->size-req_size;
       chnk_save->size = req_size;
+
       void *temp_data = chnk_save->data;
+
       chnk_ptr->data = (void*)((char*)temp_data+req_size);
       chnk_ptr->next = 0;
       chnk_ptr->state = CHUNK_FREE;
       chnk_ptr->prev_size=chnk_save->size;
       chnk_ptr->prev = chnk_save;
+
       memcpy(chnk_ptr->sig, chnk_save->sig, SIG_LEN);
+
       heap.heap_free_size -= req_size;
       break;          
         
@@ -223,29 +256,55 @@ int main(){
 
 char* generateRandomString(int length) {
     char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    int charset_length = strlen(charset);
-    char* randomString = (char*)VirtualAlloc(NULL, (length + 1) * sizeof(char), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    int set_len = strlen(charset);
+    //char* rnd_str = (char*)VirtualAlloc(NULL, (length + 1) * sizeof(char), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    char* rnd_str = (char*)os_alloc((size_t)((length+1)*sizeof(char)));
 
-    if (randomString == NULL) {
-        printf("Error: Fatal: generateRandomString() -> Could not allocate memory: VirtualAlloc() -> %lu\n", GetLastError());
+    if (rnd_str == NULL) {
+        printf("Error: Fatal: generateRandomString() -> Could not allocate memory: VirtualAlloc() -> ", errhandling());
         return NULL;
     }
 
     for (int i = 0; i < length; i++) {
-        int index = rand() % charset_length;
-        randomString[i] = charset[index];
+        int index = rand() % set_len;
+        rnd_str[i] = charset[index];
     }
-    randomString[length] = '\0'; // Null-terminate the string
+    rnd_str[length] = '\0';
 
-    return randomString;
+    return rnd_str;
+}
+
+void* os_alloc(size_t rsize){
+    grsize = rsize;	
+    #if _WIN32 || defined(WIN32)
+       void* mptr = VirtualAlloc(NULL, rsize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    #elif defined(__linux__)
+       void* mptr = mmap(NULL, rsize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    #else
+        #error "COMPILER ERROR: This library requires either Linux or Windows; cannot continue compilation!"
+    #endif
+ 
+    return mptr;
+}
+
+bool os_free(void* mptr){
+    #if _WIN32 || defined(WIN32)
+	    bool rval = VirtualFree(mptr, 0, MEM_RELEASE);
+    #elif defined(__linux__)
+	bool rval = munmap(mptr, grsize);
+    #else
+        #error "COMPILER ERROR: This library requires either Linux or Windows; cannot continue compilation!"
+    #endif
+
+    return rval;
 }
 
 chunk* find_best_fit(chunk* chnk_list_ptr, size_t size){
-  size_t smallest = heap.heap_size;
-  chunk* chptr;
+  size_t smallest = SIZE_MAX;
+  chunk* chptr = NULL;
   for (int i = 0; i<heap.list_size/sizeof(chunk); i++){
-    chunk* chnk_ptr = heap.heap_list+i;
-    if (chnk_ptr->size > smallest){
+    chunk* chnk_ptr = (chunk*)heap.heap_list+i;
+    if (chnk_ptr->size > smallest || chnk_ptr->size < size || strncmp(chnk_ptr->sig, heap.sig, SIG_LEN) != 0){
       continue;
     }
     chptr = chnk_ptr;
