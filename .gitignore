@@ -3,4 +3,6 @@ arch.bat
 *.c~
 *.swp
 *.exe
+*.o
+*.out
 
