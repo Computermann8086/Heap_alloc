@@ -7,4 +7,5 @@ arch.bat
 *.out
 *.lnk
 *.ink
+*.backup
 

@@ -89,7 +89,6 @@ int init_heap(size_t heap_size){
     hsize = MIN_HEAP_SIZE;
   }
 
-  //heap.heap_memory = VirtualAlloc(NULL, hsize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   heap.heap_memory = os_alloc(hsize);
   if (heap.heap_memory == NULL){
     printf("Error: Fatal: init_heap() -> Could not allocate memory: VirtualAlloc() -> %c", errhandling());
@@ -100,7 +99,7 @@ int init_heap(size_t heap_size){
 
   heap.heap_size = hsize;
   size_t hlist_size = (hsize/MIN_CHUNK_SIZE)*sizeof(chunk);
- // heap.heap_list = VirtualAlloc(NULL, (size_t) hlist_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+ 
   heap.heap_list = os_alloc((size_t)hlist_size);
   if (heap.heap_list == NULL){
     printf("Error: Fatal: init_heap() -> Could not allocate memory: VirtualAlloc() -> %c", errhandling());
@@ -124,7 +123,7 @@ int init_heap(size_t heap_size){
   memcpy(chunk_ptr->sig, rnd_str, SIG_LEN);
   memcpy(heap.sig, rnd_str, SIG_LEN);
 
- // if (VirtualFree(rnd_str, 0, MEM_RELEASE)) {
+ 
   if (os_free(rnd_str)){  
   ;
   } else {
@@ -204,12 +203,6 @@ void* halloc(size_t size){
 }
 
 
-//int add_chunk(){
-//  for (int i = 0; i <= heap.list_size/32; i += sizeof(chunk)){
-//
-//  }
-//}
-
 /*
 hlist = [chunk, chunk, chunk...]
 
@@ -259,7 +252,7 @@ int main(){
 char* generateRandomString(int length) {
     char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     int set_len = strlen(charset);
-    //char* rnd_str = (char*)VirtualAlloc(NULL, (length + 1) * sizeof(char), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    
     char* rnd_str = (char*)os_alloc((size_t)((length+1)*sizeof(char)));
 
     if (rnd_str == NULL) {
