@@ -216,10 +216,10 @@ void hfree(void *ptr){
     printf("Bad pointer to hfree()");
     return;
   }
-  int index = (int*)ptr-(int*)heap.heap_memory;
+  int index = (((char*)ptr)-((char*)heap.heap_memory))/sizeof(chunk);
   chunk* hlist = (chunk*)heap.heap_list;
-  if (strncmp(heap.sig, hlist[index].sig, SIG_LEN)){
-    ;
+  if (strncmp(heap.sig, hlist[index].sig, SIG_LEN) == 0){
+    
   }
   return;
 }
