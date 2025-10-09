@@ -2,13 +2,15 @@
 #define HALLOC
 
 
-#ifdef _WIN32 || defined(WIN32)
+#if _WIN32 || defined(WIN32)
+   //#pragma message("Compiling " __FILE__ " for WIN32 " )
    #include <memoryapi.h>
    #include <windows.h>
    #define ISWIN 1
 #elif defined(__linux__)
    #include <sys/mman.h>
    #define ISWIN 0
+   //#pragma message("Compiling " __FILE__ " for Linux " )
 #endif
 
 #include <stdio.h>
@@ -54,15 +56,15 @@ void* os_alloc(size_t);
 bool os_free(void*);
 int valloc_err = 0;
 
-int errhandling(){
-  #ifdef _WIN32 || defined(WIN32)
+char errhandling(){
+  #if defined(_WIN32) || defined(WIN32)
     printf("%lu\n", GetLastError());
   #elif defined(__linux__)
     perror("");
   #else
     #error "COMPILER ERROR: This library requires either Linux or Windows; cannot continue compilation!"
   #endif
-  return 0;
+  return '\n';
 }
 
 int init_heap(size_t heap_size){
@@ -71,7 +73,7 @@ int init_heap(size_t heap_size){
   char* rnd_str = generateRandomString(rndstr_len);
 
   if (!rnd_str){
-    printf("Error: Fatal: init_heap() -> Could not generate random signature: generateRandomString()  -> ", errhandling());
+    printf("Error: Fatal: init_heap() -> Could not generate random signature: generateRandomString()  -> %c", errhandling());
     valloc_err = 1;
     return -1;
   }
@@ -90,7 +92,7 @@ int init_heap(size_t heap_size){
   //heap.heap_memory = VirtualAlloc(NULL, hsize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   heap.heap_memory = os_alloc(hsize);
   if (heap.heap_memory == NULL){
-    printf("Error: Fatal: init_heap() -> Could not allocate memory: VirtualAlloc() -> ", errhandling());
+    printf("Error: Fatal: init_heap() -> Could not allocate memory: VirtualAlloc() -> %c", errhandling());
     valloc_err = 1;
     return -1;
   }
@@ -101,7 +103,7 @@ int init_heap(size_t heap_size){
  // heap.heap_list = VirtualAlloc(NULL, (size_t) hlist_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   heap.heap_list = os_alloc((size_t)hlist_size);
   if (heap.heap_list == NULL){
-    printf("Error: Fatal: init_heap() -> Could not allocate memory: VirtualAlloc() -> ", errhandling());
+    printf("Error: Fatal: init_heap() -> Could not allocate memory: VirtualAlloc() -> %c", errhandling());
     valloc_err = 1;
     return -1;
   }
@@ -126,7 +128,7 @@ int init_heap(size_t heap_size){
   if (os_free(rnd_str)){  
   ;
   } else {
-    printf("Error: Fatal: init_heap() -> Could not deallocate memory: VirtualFree(random sig) -> ", errhandling());
+    printf("Error: Fatal: init_heap() -> Could not deallocate memory: VirtualFree(random sig) -> %c", errhandling());
     valloc_err = 1;
     return -1;
   }
@@ -261,7 +263,7 @@ char* generateRandomString(int length) {
     char* rnd_str = (char*)os_alloc((size_t)((length+1)*sizeof(char)));
 
     if (rnd_str == NULL) {
-        printf("Error: Fatal: generateRandomString() -> Could not allocate memory: VirtualAlloc() -> ", errhandling());
+        printf("Error: Fatal: generateRandomString() -> Could not allocate memory: VirtualAlloc() -> %c", errhandling());
         return NULL;
     }
 
@@ -276,7 +278,7 @@ char* generateRandomString(int length) {
 
 void* os_alloc(size_t rsize){
     grsize = rsize;	
-    #if _WIN32 || defined(WIN32)
+    #if defined(_WIN32) || defined(WIN32)
        void* mptr = VirtualAlloc(NULL, rsize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     #elif defined(__linux__)
        void* mptr = mmap(NULL, rsize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -288,7 +290,7 @@ void* os_alloc(size_t rsize){
 }
 
 bool os_free(void* mptr){
-    #if _WIN32 || defined(WIN32)
+    #if defined(_WIN32) || defined(WIN32)
 	    bool rval = VirtualFree(mptr, 0, MEM_RELEASE);
     #elif defined(__linux__)
 	bool rval = munmap(mptr, grsize);
