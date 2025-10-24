@@ -139,6 +139,11 @@ int init_heap(size_t heap_size){
 }
 
 
+/*
+Main heap allocator function   
+Curently based on a first fit algorithm with chunk splitting
+*/
+
 
 void* halloc(size_t size){
   size_t req_size = size;
@@ -208,19 +213,35 @@ hlist = [chunk, chunk, chunk...]
 
 */
 
+
+/*
+Chunk structure:
+
+  char sig[SIGLEN]: signature that is SIGLEN song 
+  void* data: ptr to data
+  size_t size: size of the chunk
+  int state: chunk state flags
+  struct chunk* next: ptr to the next chunk in the chunk list
+  struck chunk* prev: ptr to prevoius chunk
+  size_t prev_size: size of the prevoius chunk
+
+*/
+
 void hfree(void *ptr){
   char* hmemt = (char*)heap.heap_memory;
   int offset = (int)heap.heap_size;
   void* hmem = (void*)(hmemt+offset);
   if (ptr > hmem){
-    printf("Bad pointer to hfree()");
+    printf("Bad pointer to hfree\n");
     return;
   }
   int index = (((char*)ptr)-((char*)heap.heap_memory))/sizeof(chunk);
   chunk* hlist = (chunk*)heap.heap_list;
-  if (strncmp(heap.sig, hlist[index].sig, SIG_LEN) == 0){
-    
+  if (strncmp(heap.sig, hlist[index].sig, SIG_LEN) != 0){
+    printf("Bad pointer to hfree\n");
+    return;
   }
+
   return;
 }
 
